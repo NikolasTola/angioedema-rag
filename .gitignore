@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Environment variables
+.env
+
+# OpenSearch data (volume local do Docker)
+docker/data/
+
+# Documentos brutos (PDFs podem ser pesados)
+docs/raw/
+
+# Jupyter (se usar para exploração)
+.ipynb_checkpoints/
+
+# IDEs
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+TODOS.txt
