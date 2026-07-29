@@ -1,8 +1,11 @@
-import re
 import logging
-import tiktoken
-from dataclasses import dataclass, field
+import re
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from typing import ClassVar
+
+import tiktoken
+
 from src.ingestion.loader import Document
 
 logger = logging.getLogger(__name__)
@@ -24,6 +27,7 @@ def truncate_to_tokens(text: str, max_tokens: int) -> str:
 @dataclass
 class Chunk:
     """Represents a single chunk of text ready for indexing."""
+
     text: str
     token_count: int
     chunk_index: int
@@ -49,7 +53,6 @@ class BaseChunker(ABC):
     @abstractmethod
     def chunk(self, document: Document) -> list[Chunk]:
         """Splits a document into chunks."""
-        pass
 
     def _build_chunk(self, text: str, index: int, metadata: dict) -> Chunk:
         """Creates a Chunk object from text and metadata."""
@@ -59,7 +62,7 @@ class BaseChunker(ABC):
             token_count=count_tokens(text),
             chunk_index=index,
             strategy=self.__class__.__name__,
-            metadata=metadata
+            metadata=metadata,
         )
 
     def _apply_overlap(self, chunks: list[str]) -> list[str]:
@@ -73,7 +76,7 @@ class BaseChunker(ABC):
         result = [chunks[0]]
         for i in range(1, len(chunks)):
             previous_tokens = TOKENIZER.encode(chunks[i - 1])
-            overlap_tokens = previous_tokens[-self.overlap:]
+            overlap_tokens = previous_tokens[-self.overlap :]
             overlap_text = TOKENIZER.decode(overlap_tokens)
             result.append(overlap_text + " " + chunks[i])
 
@@ -108,9 +111,7 @@ class FixedSizeChunker(BaseChunker):
         chunks = []
         for i, text in enumerate(raw_chunks):
             chunk = self._build_chunk(
-                text=text,
-                index=i,
-                metadata={**document.metadata, "chunk_index": i}
+                text=text, index=i, metadata={**document.metadata, "chunk_index": i}
             )
             chunks.append(chunk)
 
@@ -124,7 +125,7 @@ class SentenceChunker(BaseChunker):
     Chunks always end at the end of a complete sentence.
     """
 
-    SENTENCE_ENDINGS = re.compile(r'(?<=[.!?])\s+')
+    SENTENCE_ENDINGS = re.compile(r"(?<=[.!?])\s+")
 
     def _split_sentences(self, text: str) -> list[str]:
         """Splits text into individual sentences."""
@@ -151,7 +152,9 @@ class SentenceChunker(BaseChunker):
                     raw_chunks.append(" ".join(current_chunk))
                     current_chunk = []
                     current_tokens = 0
-                raw_chunks.append(truncate_to_tokens(sentence, self.effective_chunk_size))
+                raw_chunks.append(
+                    truncate_to_tokens(sentence, self.effective_chunk_size)
+                )
                 continue
 
             if current_tokens + sentence_tokens > self.effective_chunk_size:
@@ -170,9 +173,7 @@ class SentenceChunker(BaseChunker):
         chunks = []
         for i, text in enumerate(overlapped):
             chunk = self._build_chunk(
-                text=text,
-                index=i,
-                metadata={**document.metadata, "chunk_index": i}
+                text=text, index=i, metadata={**document.metadata, "chunk_index": i}
             )
             chunks.append(chunk)
 
@@ -186,7 +187,7 @@ class RecursiveChunker(BaseChunker):
     Tries paragraphs first, then sentences, then fixed size as last resort.
     """
 
-    SEPARATORS = ["\n\n", "\n", ". ", " "]
+    SEPARATORS: ClassVar[list[str]] = ["\n\n", "\n", ". ", " "]
 
     def _split_by_separator(self, text: str, separator: str) -> list[str]:
         """Splits text by a separator, keeping non-empty parts."""
@@ -250,9 +251,7 @@ class RecursiveChunker(BaseChunker):
         chunks = []
         for i, text in enumerate(overlapped):
             chunk = self._build_chunk(
-                text=text,
-                index=i,
-                metadata={**document.metadata, "chunk_index": i}
+                text=text, index=i, metadata={**document.metadata, "chunk_index": i}
             )
             chunks.append(chunk)
 
