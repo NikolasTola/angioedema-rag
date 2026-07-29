@@ -12,8 +12,9 @@ venv/
 # OpenSearch data (volume local do Docker)
 docker/data/
 
-# Documentos brutos (PDFs podem ser pesados)
-docs/raw/
+# Documentos brutos
+docs/raw/*
+!docs/raw/.gitkeep
 
 # Jupyter (se usar para exploração)
 .ipynb_checkpoints/
