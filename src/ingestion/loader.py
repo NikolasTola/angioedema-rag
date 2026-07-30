@@ -61,6 +61,13 @@ def normalize_text(text: str) -> str:
     Removes noise common in medical PDF documents.
     Applied after clean_text, before chunking.
     """
+    # remove known copyright/footer blocks
+    copyright_pattern = re.compile(
+        r'Proibida a reprodução.*?(?=\n\n|\Z)',
+        re.DOTALL | re.IGNORECASE
+    )
+    text = copyright_pattern.sub('', text)
+
     toc_pattern = re.compile(r'\.{3,}')
     page_number_pattern = re.compile(r'^\d+$')
     short_line_pattern = re.compile(r'^.{1,3}$')
@@ -68,13 +75,16 @@ def normalize_text(text: str) -> str:
 
     lines = text.splitlines()
 
-    # lines appearing 3+ times are likely headers/footers
+    def normalize_line(line: str) -> str:
+        return re.sub(r'\s+', ' ', line.strip()).lower()
+
+    # threshold of 5+ to only catch clear page headers/footers
     line_counts = {}
     for line in lines:
-        stripped = line.strip()
-        if stripped:
-            line_counts[stripped] = line_counts.get(stripped, 0) + 1
-    repeated_lines = {line for line, count in line_counts.items() if count >= 3}
+        normalized = normalize_line(line)
+        if normalized:
+            line_counts[normalized] = line_counts.get(normalized, 0) + 1
+    repeated_normalized = {line for line, count in line_counts.items() if count >= 5}
 
     normalized = []
     for line in lines:
@@ -84,13 +94,13 @@ def normalize_text(text: str) -> str:
             normalized.append("")
             continue
 
+        if normalize_line(stripped) in repeated_normalized:
+            continue
         if toc_pattern.search(stripped):
             continue
         if page_number_pattern.match(stripped):
             continue
         if short_line_pattern.match(stripped):
-            continue
-        if stripped in repeated_lines:
             continue
         if section_number_pattern.match(stripped):
             continue
