@@ -38,6 +38,13 @@ class Chunk:
 class BaseChunker(ABC):
     """Abstract base class for all chunking strategies."""
 
+    STRUCTURAL_LINE_PATTERN = re.compile(
+        r'^[\d\.\s]+$'
+        r'|^\d+\.\d'
+        r'|^[A-Z]{2,6}$'
+        r'|^\w{1,3}[\.\-]\w'
+    )
+
     def __init__(self, chunk_size: int = 800, overlap: int = 100):
         if chunk_size <= 0:
             raise ValueError("chunk_size must be positive")
@@ -49,6 +56,7 @@ class BaseChunker(ABC):
         self.chunk_size = chunk_size
         self.overlap = overlap
         self.effective_chunk_size = chunk_size - overlap
+
 
     @abstractmethod
     def chunk(self, document: Document) -> list[Chunk]:
@@ -82,6 +90,31 @@ class BaseChunker(ABC):
 
         return result
 
+    def _structural_line_ratio(self, text: str) -> float:
+        """
+        Ratio of structural lines to total lines.
+        High ratio indicates TOC, index or figure list content.
+        """
+        lines = [l.strip() for l in text.splitlines() if l.strip()]
+        if not lines:
+            return 0.0
+        structural = [l for l in lines if self.STRUCTURAL_LINE_PATTERN.match(l)]
+        return len(structural) / len(lines)
+
+    def _is_valid_chunk(self, chunk: Chunk) -> bool:
+        """
+        Returns False if the chunk is noise-heavy and should be discarded.
+        """
+        if chunk.token_count < 20:
+            return False
+        if self._structural_line_ratio(chunk.text) > 0.70:
+            logger.debug(
+                f"Discarding chunk {chunk.chunk_index} from "
+                f"{chunk.metadata.get('source')} — high structural ratio"
+            )
+            return False
+        return True
+
 
 class FixedSizeChunker(BaseChunker):
     """
@@ -114,9 +147,14 @@ class FixedSizeChunker(BaseChunker):
                 text=text, index=i, metadata={**document.metadata, "chunk_index": i}
             )
             chunks.append(chunk)
+        
+        valid_chunks = [c for c in chunks if self._is_valid_chunk(c)]
+        discarded = len(chunks) - len(valid_chunks)
+        if discarded:
+            logger.info(f"[FixedSize] Discarded {discarded} noise chunks")
 
-        logger.info(f"[FixedSize] Generated {len(chunks)} chunks")
-        return chunks
+        logger.info(f"[FixedSize] Generated {len(valid_chunks)} chunks")
+        return valid_chunks
 
 
 class SentenceChunker(BaseChunker):
@@ -177,8 +215,13 @@ class SentenceChunker(BaseChunker):
             )
             chunks.append(chunk)
 
-        logger.info(f"[Sentence] Generated {len(chunks)} chunks")
-        return chunks
+        valid_chunks = [c for c in chunks if self._is_valid_chunk(c)]
+        discarded = len(chunks) - len(valid_chunks)
+        if discarded:
+            logger.info(f"[Sentence] Discarded {discarded} noise chunks")
+
+        logger.info(f"[Sentence] Generated {len(valid_chunks)} chunks")
+        return valid_chunks
 
 
 class RecursiveChunker(BaseChunker):
@@ -255,5 +298,10 @@ class RecursiveChunker(BaseChunker):
             )
             chunks.append(chunk)
 
-        logger.info(f"[Recursive] Generated {len(chunks)} chunks")
-        return chunks
+        valid_chunks = [c for c in chunks if self._is_valid_chunk(c)]
+        discarded = len(chunks) - len(valid_chunks)
+        if discarded:
+            logger.info(f"[Recursive] Discarded {discarded} noise chunks")
+
+        logger.info(f"[Recursive] Generated {len(valid_chunks)} chunks")
+        return valid_chunks
