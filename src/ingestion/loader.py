@@ -169,7 +169,7 @@ def load_all_pdfs(directory: str | Path) -> list[Document]:
         try:
             doc = load_pdf(pdf_path)
             documents.append(doc)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to load {pdf_path.name}: {e}")
             continue
 
